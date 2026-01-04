@@ -19,6 +19,10 @@ public class Player : MonoBehaviour
     [SerializeField] private float mouseSensitivity = 15.0f;
     [SerializeField] private float lookXLimit = 80.0f;
 
+    [Header("--- Landing Settings ---")]
+    [SerializeField] private float minAirTime = 0.25f;
+    private float airTime = 0f;
+
     [Header("--- Head Bobbing Settings ---")]
     [SerializeField] private bool enableHeadBob = true;
     [SerializeField] private float bobSpeed = 14f;
@@ -68,7 +72,10 @@ public class Player : MonoBehaviour
 
     private void Update()
     {
-        wasGrounded = characterController.isGrounded;
+        if (!characterController.isGrounded)
+        {
+            airTime += Time.deltaTime;
+        }
 
         HandleMovement();
         HandleRotation();
@@ -138,10 +145,17 @@ public class Player : MonoBehaviour
 
     private void HandleLanding()
     {
-        if (!wasGrounded && characterController.isGrounded && playerVelocity.y < -0.1f)
+        if (!wasGrounded && characterController.isGrounded)
         {
-            PlayRandomClip(landingSounds, footstepVolume * 1.2f);
+            if (airTime > minAirTime)
+            {
+                PlayRandomClip(landingSounds, footstepVolume * 1.2f);
+            }
+
+            airTime = 0f;
         }
+
+        wasGrounded = characterController.isGrounded;
     }
 
     private void PlayFootstepSound()

@@ -12,7 +12,7 @@ public class FlashLight : MonoBehaviour
     [SerializeField] private float swayMultiplier = 2f;
 
     private Player playerScript;
-    private bool isFlashLightOn = false;
+    private bool isFlashLightOn = true;
 
     private void Start()
     {
