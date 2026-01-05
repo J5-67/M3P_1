@@ -482,6 +482,7 @@ Transform:
   - {fileID: 500315267}
   - {fileID: 1804766148}
   - {fileID: 705507995}
+  - {fileID: 1458296218}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &705507993
@@ -1421,7 +1422,7 @@ GameObject:
   - component: {fileID: 1458296217}
   - component: {fileID: 1458296216}
   m_Layer: 0
-  m_Name: Text (TMP)
+  m_Name: EXIT
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1576,16 +1577,16 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1458296215}
-  m_LocalRotation: {x: 0, y: -0.7071068, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 0, z: 6.7}
+  m_LocalRotation: {x: -0, y: -0.7071068, z: -0, w: 0.7071068}
+  m_LocalPosition: {x: 0, y: 0, z: -0.27945995}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 606892254}
   m_LocalEulerAnglesHint: {x: 0, y: -90, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -182, y: 8}
+  m_AnchoredPosition: {x: 39.04187, y: 8.16284}
   m_SizeDelta: {x: 10, y: 3}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &1804766145
@@ -520985,4 +520986,3 @@ SceneRoots:
   - {fileID: 1037412118}
   - {fileID: 9027281787142242700}
   - {fileID: 606892254}
-  - {fileID: 1458296218}
