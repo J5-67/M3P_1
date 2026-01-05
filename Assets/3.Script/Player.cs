@@ -6,6 +6,16 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(CharacterController))]
 public class Player : MonoBehaviour
 {
+    [System.Serializable]
+    public class SurfaceSoundProfile
+    {
+        public string surfaceTag; // 바닥의 태그 이름 (예: "Wood", "Stone")
+        public List<AudioClip> walkSounds;       // 걷기
+        public List<AudioClip> sprintSounds;     // 달리기
+        public List<AudioClip> jumpStartSounds;  // 점프 시작
+        public List<AudioClip> landingSounds;    // 착지
+    }
+
     [Header("--- Components ---")]
     [SerializeField] private Transform cameraRoot;
 
@@ -19,10 +29,6 @@ public class Player : MonoBehaviour
     [SerializeField] private float mouseSensitivity = 15.0f;
     [SerializeField] private float lookXLimit = 80.0f;
 
-    [Header("--- Landing Settings ---")]
-    [SerializeField] private float minAirTime = 0.25f;
-    private float airTime = 0f;
-
     [Header("--- Head Bobbing Settings ---")]
     [SerializeField] private bool enableHeadBob = true;
     [SerializeField] private float bobSpeed = 14f;
@@ -35,16 +41,20 @@ public class Player : MonoBehaviour
     [SerializeField] private float flashCooldown = 0.5f;
     private float lastFlashTime = -1f;
 
+    [Header("--- Landing Settings ---")]
+    [SerializeField] private float minAirTime = 0.25f;
+    private float airTime = 0f;
+
     [Header("--- Audio Settings ---")]
     [SerializeField] private AudioSource footstepSource;
     [SerializeField] private float footstepVolume = 0.5f;
 
-    // [유니] 사운드 리스트 세분화!
-    [Header("--- Audio Clips ---")]
-    [SerializeField] private List<AudioClip> walkSounds;
-    [SerializeField] private List<AudioClip> sprintSounds;
-    [SerializeField] private List<AudioClip> jumpStartSounds;
-    [SerializeField] private List<AudioClip> landingSounds;
+    [Header("--- Surface Sounds ---")]
+    [Tooltip("태그가 없는 바닥에서 날 기본 소리")]
+    [SerializeField] private SurfaceSoundProfile defaultSurface;
+
+    [Tooltip("태그별 바닥 소리 목록")]
+    [SerializeField] private List<SurfaceSoundProfile> surfaceProfiles;
 
     private CharacterController characterController;
     private FlashLight flashLight;
@@ -60,9 +70,9 @@ public class Player : MonoBehaviour
 
     private void Start()
     {
-        if (cameraRoot != null) defaultPosY = cameraRoot.localPosition.y; else Debug.LogError("Camera Root 없음!");
         if (!TryGetComponent(out characterController)) Debug.LogError("CharacterController 없음!");
         if (footstepSource == null) TryGetComponent(out footstepSource);
+        if (cameraRoot != null) defaultPosY = cameraRoot.localPosition.y; else Debug.LogError("Camera Root 없음!");
 
         flashLight = GetComponentInChildren<FlashLight>();
 
@@ -76,6 +86,12 @@ public class Player : MonoBehaviour
         {
             airTime += Time.deltaTime;
         }
+        else
+        {
+            // 땅에 있을 때 airTime 초기화는 HandleLanding에서 처리
+        }
+
+        wasGrounded = characterController.isGrounded;
 
         HandleMovement();
         HandleRotation();
@@ -149,19 +165,42 @@ public class Player : MonoBehaviour
         {
             if (airTime > minAirTime)
             {
-                PlayRandomClip(landingSounds, footstepVolume * 1.2f);
+                // [유니] 현재 바닥에 맞는 착지 소리 재생!
+                SurfaceSoundProfile currentProfile = GetCurrentSurfaceProfile();
+                PlayRandomClip(currentProfile.landingSounds, footstepVolume * 1.2f);
             }
-
             airTime = 0f;
         }
-
-        wasGrounded = characterController.isGrounded;
     }
 
+    // [유니] 발소리 재생 (재질 확인 포함)
     private void PlayFootstepSound()
     {
-        List<AudioClip> clipsToPlay = isSprinting ? sprintSounds : walkSounds;
+        SurfaceSoundProfile currentProfile = GetCurrentSurfaceProfile();
+        List<AudioClip> clipsToPlay = isSprinting ? currentProfile.sprintSounds : currentProfile.walkSounds;
+
         PlayRandomClip(clipsToPlay, footstepVolume);
+    }
+
+    private SurfaceSoundProfile GetCurrentSurfaceProfile()
+    {
+        // 발밑으로 레이저를 쏴서 뭐가 있는지 확인해
+        RaycastHit hit;
+        // 캐릭터 중심에서 아래로 1.5m 정도 쏴봄 (발바닥 위치 확인)
+        if (Physics.Raycast(transform.position + Vector3.up * 0.5f, Vector3.down, out hit, 2.0f))
+        {
+            // 부딪힌 물체의 태그를 확인!
+            foreach (var profile in surfaceProfiles)
+            {
+                if (hit.collider.CompareTag(profile.surfaceTag))
+                {
+                    return profile; // 태그가 일치하는 프로필 발견!
+                }
+            }
+        }
+
+        // 아무것도 안 걸리거나 태그가 없으면 기본 소리 반환
+        return defaultSurface;
     }
 
     private void PlayRandomClip(List<AudioClip> clips, float volume)
@@ -169,40 +208,28 @@ public class Player : MonoBehaviour
         if (clips == null || clips.Count == 0) return;
 
         int index = Random.Range(0, clips.Count);
-
         footstepSource.pitch = Random.Range(0.9f, 1.1f);
         footstepSource.PlayOneShot(clips[index], volume);
     }
 
-    private void OnMove(InputValue value)
-    {
-        moveInput = value.Get<Vector2>();
-    }
-
-    private void OnLook(InputValue value)
-    {
-        lookInput = value.Get<Vector2>();
-    }
+    // --- Input System Messages ---
+    private void OnMove(InputValue value) { moveInput = value.Get<Vector2>(); }
+    private void OnLook(InputValue value) { lookInput = value.Get<Vector2>(); }
 
     private void OnJump(InputValue value)
     {
         if (value.isPressed && characterController.isGrounded)
         {
-            PlayRandomClip(jumpStartSounds, footstepVolume);
+            // [유니] 점프 시작 소리도 재질에 맞게!
+            SurfaceSoundProfile currentProfile = GetCurrentSurfaceProfile();
+            PlayRandomClip(currentProfile.jumpStartSounds, footstepVolume);
+
             playerVelocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
     }
 
-    private void OnInteraction(InputValue value)
-    {
-        if (value.isPressed) Debug.Log("상호작용");
-    }
-
-    // [유니] 달리기 입력 추가
-    private void OnSprint(InputValue value)
-    {
-        isSprinting = value.isPressed;
-    }
+    private void OnInteraction(InputValue value) { if (value.isPressed) Debug.Log("상호작용"); }
+    private void OnSprint(InputValue value) { isSprinting = value.isPressed; }
 
     private void OnFlashLight(InputValue value)
     {
@@ -216,8 +243,5 @@ public class Player : MonoBehaviour
         }
     }
 
-    public Vector2 GetLookInput()
-    {
-        return lookInput;
-    }
+    public Vector2 GetLookInput() { return lookInput; }
 }

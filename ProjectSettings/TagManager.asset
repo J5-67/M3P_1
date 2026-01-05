@@ -3,7 +3,18 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 3
-  tags: []
+  tags:
+  - DirtyGround
+  - Grass
+  - Gravel
+  - Leaves
+  - Metal
+  - Mud
+  - Rock
+  - Sand
+  - Snow
+  - Water
+  - Wood
   layers:
   - Default
   - TransparentFX

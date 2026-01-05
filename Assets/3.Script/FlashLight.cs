@@ -2,8 +2,9 @@ using UnityEngine;
 
 public class FlashLight : MonoBehaviour
 {
-    [Header("--- Settings ---")]
+    [Header("--- Components ---")]
     [SerializeField] private Light flashlight;
+    [SerializeField] private GameObject volumetricBeam;
     [SerializeField] private AudioSource audioSource;
     [SerializeField] private AudioClip clickSound;
 
@@ -19,6 +20,11 @@ public class FlashLight : MonoBehaviour
         if (!transform.root.TryGetComponent(out playerScript))
         {
             Debug.LogError("Player 스크립트를 찾을 수 없습니다.");
+        }
+
+        if (volumetricBeam != null)
+        {
+            volumetricBeam.SetActive(isFlashLightOn);
         }
     }
 
@@ -43,7 +49,15 @@ public class FlashLight : MonoBehaviour
     {
         isFlashLightOn = !isFlashLightOn;
 
-        flashlight.enabled = isFlashLightOn;
+        if (flashlight != null)
+        {
+            flashlight.enabled = isFlashLightOn;
+        }
+
+        if (volumetricBeam != null)
+        {
+            volumetricBeam.SetActive(isFlashLightOn);
+        }
 
         if (audioSource != null && clickSound != null)
         {
