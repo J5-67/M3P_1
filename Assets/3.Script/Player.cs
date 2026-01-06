@@ -1,19 +1,19 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 using UnityEngine.InputSystem;
 
-[RequireComponent(typeof(AudioSource))]
 [RequireComponent(typeof(CharacterController))]
 public class Player : MonoBehaviour
 {
     [System.Serializable]
     public class SurfaceSoundProfile
     {
-        public string surfaceTag; // 바닥의 태그 이름 (예: "Wood", "Stone")
-        public List<AudioClip> walkSounds;       // 걷기
-        public List<AudioClip> sprintSounds;     // 달리기
-        public List<AudioClip> jumpStartSounds;  // 점프 시작
-        public List<AudioClip> landingSounds;    // 착지
+        public string surfaceTag;
+        public List<AudioClip> walkSounds;
+        public List<AudioClip> sprintSounds;
+        public List<AudioClip> jumpStartSounds;
+        public List<AudioClip> landingSounds;
     }
 
     [Header("--- Components ---")]
@@ -24,6 +24,16 @@ public class Player : MonoBehaviour
     [SerializeField] private float sprintSpeed = 8.0f;
     [SerializeField] private float jumpHeight = 1.5f;
     [SerializeField] private float gravity = -9.81f;
+
+    [Header("--- Stamina Settings ---")]
+    [SerializeField] private float maxStamina = 100f;
+    [Tooltip("초당 스테미나 소모량")]
+    [SerializeField] private float staminaDrainRate = 15f;
+    [Tooltip("초당 스테미나 회복량")]
+    [SerializeField] private float staminaRegenRate = 10f;
+    [Tooltip("완전히 지쳤을 때 회복 대기 시간")]
+    [SerializeField] private float exhaustionPenaltyTime = 3f;
+    [SerializeField] private Slider staminaSlider;
 
     [Header("--- Look Settings ---")]
     [SerializeField] private float mouseSensitivity = 15.0f;
@@ -47,13 +57,15 @@ public class Player : MonoBehaviour
 
     [Header("--- Audio Settings ---")]
     [SerializeField] private AudioSource footstepSource;
+    [SerializeField] private AudioSource breathingSource;
     [SerializeField] private float footstepVolume = 0.5f;
 
-    [Header("--- Surface Sounds ---")]
-    [Tooltip("태그가 없는 바닥에서 날 기본 소리")]
-    [SerializeField] private SurfaceSoundProfile defaultSurface;
+    [Header("--- Breathing Clips ---")]
+    [SerializeField] private AudioClip runBreathSound;
+    [SerializeField] private AudioClip exhaustedBreathSound;
 
-    [Tooltip("태그별 바닥 소리 목록")]
+    [Header("--- Surface Sounds ---")]
+    [SerializeField] private SurfaceSoundProfile defaultSurface;
     [SerializeField] private List<SurfaceSoundProfile> surfaceProfiles;
 
     private CharacterController characterController;
@@ -68,16 +80,25 @@ public class Player : MonoBehaviour
     private bool wasGrounded = true;
     private bool hasStepped = false;
 
+    private float currentStamina;
+    private bool isExhausted = false;
+    private float exhaustedTimer = 0f;
+
     private void Start()
     {
         if (!TryGetComponent(out characterController)) Debug.LogError("CharacterController 없음!");
-        if (footstepSource == null) TryGetComponent(out footstepSource);
+        if (footstepSource == null) Debug.LogWarning("Footstep AudioSource가 연결되지 않았습니다.");
+        if (breathingSource == null) Debug.LogWarning("Breathing AudioSource가 연결되지 않았습니다.");
+
         if (cameraRoot != null) defaultPosY = cameraRoot.localPosition.y; else Debug.LogError("Camera Root 없음!");
 
         flashLight = GetComponentInChildren<FlashLight>();
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        currentStamina = maxStamina;
+        staminaSlider.value = maxStamina;
     }
 
     private void Update()
@@ -86,22 +107,77 @@ public class Player : MonoBehaviour
         {
             airTime += Time.deltaTime;
         }
-        else
-        {
-            // 땅에 있을 때 airTime 초기화는 HandleLanding에서 처리
-        }
 
         wasGrounded = characterController.isGrounded;
+        staminaSlider.value = currentStamina;
 
+        HandleStamina();
         HandleMovement();
         HandleRotation();
         HandleHeadBob();
         HandleLanding();
     }
 
+    private void HandleStamina()
+    {
+        bool isMoving = moveInput.sqrMagnitude > 0.01f;
+
+        if (isSprinting && isMoving && !isExhausted)
+        {
+            currentStamina -= staminaDrainRate * Time.deltaTime;
+
+            if (breathingSource != null && runBreathSound != null)
+            {
+                if (breathingSource.clip != runBreathSound || !breathingSource.isPlaying)
+                {
+                    breathingSource.clip = runBreathSound;
+                    breathingSource.loop = true;
+                    breathingSource.Play();
+                }
+            }
+
+            if (currentStamina <= 0f)
+            {
+                currentStamina = 0f;
+                isExhausted = true;
+                exhaustedTimer = exhaustionPenaltyTime;
+                isSprinting = false;
+
+                if (breathingSource != null && exhaustedBreathSound != null)
+                {
+                    breathingSource.clip = exhaustedBreathSound;
+                    breathingSource.loop = false;
+                    breathingSource.Play();
+                }
+            }
+        }
+        else
+        {
+            if (isExhausted)
+            {
+                exhaustedTimer -= Time.deltaTime;
+                if (exhaustedTimer <= 0f)
+                {
+                    isExhausted = false;
+                }
+            }
+            else
+            {
+                currentStamina += staminaRegenRate * Time.deltaTime;
+
+                if (breathingSource != null && breathingSource.isPlaying && breathingSource.clip == runBreathSound)
+                {
+                    breathingSource.Stop();
+                }
+            }
+
+            currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
+        }
+    }
+
     private void HandleMovement()
     {
-        float currentSpeed = (isSprinting && characterController.isGrounded) ? sprintSpeed : walkSpeed;
+        float currentSpeed = (isSprinting && !isExhausted && characterController.isGrounded) ? sprintSpeed : walkSpeed;
 
         Vector3 move = transform.right * moveInput.x + transform.forward * moveInput.y;
         characterController.Move(move * currentSpeed * Time.deltaTime);
@@ -131,11 +207,12 @@ public class Player : MonoBehaviour
 
         if (isMoving && characterController.isGrounded)
         {
-            float speedMultiplier = isSprinting ? sprintBobMultiplier : 1f;
+            bool actuallySprinting = isSprinting && !isExhausted;
+            float speedMultiplier = actuallySprinting ? sprintBobMultiplier : 1f;
             bobTimer += Time.deltaTime * (bobSpeed * speedMultiplier);
 
             float sinValue = Mathf.Sin(bobTimer);
-            float currentBobAmount = isSprinting ? bobAmount * sprintBobMultiplier : bobAmount;
+            float currentBobAmount = actuallySprinting ? bobAmount * sprintBobMultiplier : bobAmount;
             float newY = defaultPosY + sinValue * currentBobAmount;
 
             cameraRoot.localPosition = new Vector3(cameraRoot.localPosition.x, newY, cameraRoot.localPosition.z);
@@ -165,7 +242,6 @@ public class Player : MonoBehaviour
         {
             if (airTime > minAirTime)
             {
-                // [유니] 현재 바닥에 맞는 착지 소리 재생!
                 SurfaceSoundProfile currentProfile = GetCurrentSurfaceProfile();
                 PlayRandomClip(currentProfile.landingSounds, footstepVolume * 1.2f);
             }
@@ -173,33 +249,28 @@ public class Player : MonoBehaviour
         }
     }
 
-    // [유니] 발소리 재생 (재질 확인 포함)
     private void PlayFootstepSound()
     {
         SurfaceSoundProfile currentProfile = GetCurrentSurfaceProfile();
-        List<AudioClip> clipsToPlay = isSprinting ? currentProfile.sprintSounds : currentProfile.walkSounds;
+        bool actuallySprinting = isSprinting && !isExhausted;
+        List<AudioClip> clipsToPlay = actuallySprinting ? currentProfile.sprintSounds : currentProfile.walkSounds;
 
         PlayRandomClip(clipsToPlay, footstepVolume);
     }
 
     private SurfaceSoundProfile GetCurrentSurfaceProfile()
     {
-        // 발밑으로 레이저를 쏴서 뭐가 있는지 확인해
         RaycastHit hit;
-        // 캐릭터 중심에서 아래로 1.5m 정도 쏴봄 (발바닥 위치 확인)
         if (Physics.Raycast(transform.position + Vector3.up * 0.5f, Vector3.down, out hit, 2.0f))
         {
-            // 부딪힌 물체의 태그를 확인!
             foreach (var profile in surfaceProfiles)
             {
                 if (hit.collider.CompareTag(profile.surfaceTag))
                 {
-                    return profile; // 태그가 일치하는 프로필 발견!
+                    return profile;
                 }
             }
         }
-
-        // 아무것도 안 걸리거나 태그가 없으면 기본 소리 반환
         return defaultSurface;
     }
 
@@ -212,15 +283,13 @@ public class Player : MonoBehaviour
         footstepSource.PlayOneShot(clips[index], volume);
     }
 
-    // --- Input System Messages ---
     private void OnMove(InputValue value) { moveInput = value.Get<Vector2>(); }
     private void OnLook(InputValue value) { lookInput = value.Get<Vector2>(); }
 
     private void OnJump(InputValue value)
     {
-        if (value.isPressed && characterController.isGrounded)
+        if (value.isPressed && characterController.isGrounded && !isExhausted)
         {
-            // [유니] 점프 시작 소리도 재질에 맞게!
             SurfaceSoundProfile currentProfile = GetCurrentSurfaceProfile();
             PlayRandomClip(currentProfile.jumpStartSounds, footstepVolume);
 
@@ -229,7 +298,11 @@ public class Player : MonoBehaviour
     }
 
     private void OnInteraction(InputValue value) { if (value.isPressed) Debug.Log("상호작용"); }
-    private void OnSprint(InputValue value) { isSprinting = value.isPressed; }
+
+    private void OnSprint(InputValue value)
+    {
+        isSprinting = value.isPressed;
+    }
 
     private void OnFlashLight(InputValue value)
     {
