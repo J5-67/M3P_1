@@ -15,6 +15,8 @@ TagManager:
   - Snow
   - Water
   - Wood
+  - Battery
+  - Key
   layers:
   - Default
   - TransparentFX
@@ -23,7 +25,7 @@ TagManager:
   - Water
   - UI
   - PostProcessing
-  - 
+  - Item
   - 
   - 
   - 

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
+using TMPro;
 
 [RequireComponent(typeof(CharacterController))]
 public class Player : MonoBehaviour
@@ -68,6 +69,14 @@ public class Player : MonoBehaviour
     [SerializeField] private SurfaceSoundProfile defaultSurface;
     [SerializeField] private List<SurfaceSoundProfile> surfaceProfiles;
 
+    [Header("--- Interaction Settings ---")]
+    [SerializeField] private float interactionDistance = 3.0f; // 상호작용 가능 거리
+    [SerializeField] private LayerMask interactionLayer; // 아이템 레이어만 체크 (최적화)
+    [SerializeField] private TMP_Text interactionText; // 화면 중앙 안내 텍스트 (예: "E 열쇠 획득")
+
+    [Header("--- Inventory ---")]
+    public int keyCount = 0;
+
     private CharacterController characterController;
     private FlashLight flashLight;
 
@@ -84,6 +93,8 @@ public class Player : MonoBehaviour
     private bool isExhausted = false;
     private float exhaustedTimer = 0f;
 
+    private Camera playerCamera;
+
     private void Start()
     {
         if (!TryGetComponent(out characterController)) Debug.LogError("CharacterController 없음!");
@@ -91,6 +102,9 @@ public class Player : MonoBehaviour
         if (breathingSource == null) Debug.LogWarning("Breathing AudioSource가 연결되지 않았습니다.");
 
         if (cameraRoot != null) defaultPosY = cameraRoot.localPosition.y; else Debug.LogError("Camera Root 없음!");
+
+        playerCamera = Camera.main;
+        if (playerCamera == null) playerCamera = GetComponentInChildren<Camera>();
 
         flashLight = GetComponentInChildren<FlashLight>();
 
@@ -111,11 +125,50 @@ public class Player : MonoBehaviour
         wasGrounded = characterController.isGrounded;
         staminaSlider.value = currentStamina;
 
+        HandleInteractionUI();
         HandleStamina();
         HandleMovement();
         HandleRotation();
         HandleHeadBob();
         HandleLanding();
+    }
+
+    private void HandleInteractionUI()
+    {
+        // 혹시 카메라가 없으면 아무것도 안 함 (에러 방지)
+        if (playerCamera == null) return;
+
+        // [수정] cameraRoot 대신 playerCamera의 위치와 방향을 사용!
+        Vector3 rayOrigin = playerCamera.transform.position;
+        Vector3 rayDirection = playerCamera.transform.forward;
+
+        // 디버그용 초록색 선 (이제 눈에서 나가는 걸 볼 수 있음!)
+        Debug.DrawRay(rayOrigin, rayDirection * interactionDistance, Color.green);
+
+        RaycastHit hit;
+        // [수정] 발사 위치와 방향을 변경된 변수로 교체
+        if (Physics.Raycast(rayOrigin, rayDirection, out hit, interactionDistance, interactionLayer))
+        {
+            // ... (나머지 코드는 그대로!) ...
+            if (hit.collider.CompareTag("Key"))
+            {
+                interactionText.text = "[E] 열쇠 획득";
+                interactionText.gameObject.SetActive(true);
+            }
+            else if (hit.collider.CompareTag("Battery"))
+            {
+                interactionText.text = "[E] 배터리 교체";
+                interactionText.gameObject.SetActive(true);
+            }
+            else
+            {
+                interactionText.gameObject.SetActive(false);
+            }
+        }
+        else
+        {
+            interactionText.gameObject.SetActive(false);
+        }
     }
 
     private void HandleStamina()
@@ -297,7 +350,38 @@ public class Player : MonoBehaviour
         }
     }
 
-    private void OnInteraction(InputValue value) { if (value.isPressed) Debug.Log("상호작용"); }
+    private void OnInteraction(InputValue value)
+    {
+        if (value.isPressed && playerCamera != null) // playerCamera 체크 추가
+        {
+            Vector3 rayOrigin = playerCamera.transform.position;
+            Vector3 rayDirection = playerCamera.transform.forward;
+
+            RaycastHit hit;
+            // [수정] 여기도 cameraRoot -> rayOrigin, rayDirection으로 변경
+            if (Physics.Raycast(rayOrigin, rayDirection, out hit, interactionDistance, interactionLayer))
+            {
+                // ... (아이템 먹는 로직 그대로) ...
+                if (hit.collider.CompareTag("Key"))
+                {
+                    keyCount++;
+                    Destroy(hit.collider.gameObject);
+                    // 텍스트 바로 꺼주기 (센스!)
+                    if (interactionText != null) interactionText.gameObject.SetActive(false);
+                }
+                else if (hit.collider.CompareTag("Battery"))
+                {
+                    if (flashLight != null)
+                    {
+                        flashLight.RestoreBattery();
+                        Destroy(hit.collider.gameObject);
+                        // 텍스트 바로 꺼주기
+                        if (interactionText != null) interactionText.gameObject.SetActive(false);
+                    }
+                }
+            }
+        }
+    }
 
     private void OnSprint(InputValue value)
     {
