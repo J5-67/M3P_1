@@ -16,7 +16,7 @@ public class Noise : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float maxIntensity = 0.8f;
     [Range(0f, 1f)]
-    [SerializeField] private float maxVolume = 1.0f;
+    [SerializeField] private float maxVolume = 0.5f;
 
     [Header("--- UI ---")]
     [SerializeField] private Image noiseImage;

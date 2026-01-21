@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.UI; // 배터리 UI가 있다면 필요
+using UnityEngine.UI; // UI 기능을 위해 필수!
 
 public class FlashLight : MonoBehaviour
 {
@@ -14,7 +14,13 @@ public class FlashLight : MonoBehaviour
     public float currentBattery;
     [Tooltip("초당 배터리 소모량")]
     public float batteryDrainRate = 2f;
-    public Slider batterySlider; // (선택) 배터리 잔량 UI
+
+    [Header("--- UI Settings ---")]
+    [Tooltip("화면에 보여질 배터리 아이콘 (Image)")]
+    public Image batteryUI;
+
+    [Tooltip("배터리 상태별 이미지 6장 (100% -> 0% 순서)")]
+    public Sprite[] batterySprites; // 0:100%, 1:80%, 2:60%, 3:40%, 4:20%, 5:0%
 
     [Header("--- Sway Settings ---")]
     [SerializeField] private float smooth = 8f;
@@ -33,6 +39,7 @@ public class FlashLight : MonoBehaviour
         // 시작할 때 배터리 꽉 채우기
         currentBattery = maxBattery;
         UpdateFlashlightState();
+        UpdateBatteryUI(); // 시작하자마자 UI 갱신
     }
 
     private void Update()
@@ -69,11 +76,32 @@ public class FlashLight : MonoBehaviour
             }
         }
 
-        // UI 업데이트
-        if (batterySlider != null)
-        {
-            batterySlider.value = currentBattery / maxBattery;
-        }
+        // 매 프레임 UI 업데이트 (이미지 교체)
+        UpdateBatteryUI();
+    }
+
+    private void UpdateBatteryUI()
+    {
+        // 연결 안 되어 있으면 무시 (에러 방지)
+        if (batteryUI == null || batterySprites == null || batterySprites.Length == 0) return;
+
+        // 현재 배터리 비율 계산 (0.0 ~ 1.0)
+        float ratio = currentBattery / maxBattery;
+        int index = 0;
+
+        // 비율에 따라 보여줄 이미지 번호 결정 (6단계)
+        if (ratio > 0.8f) index = 0; // 100% ~ 81%
+        else if (ratio > 0.6f) index = 1; // 80% ~ 61%
+        else if (ratio > 0.4f) index = 2; // 60% ~ 41%
+        else if (ratio > 0.2f) index = 3; // 40% ~ 21%
+        else if (ratio > 0.0f) index = 4; // 20% ~ 1%
+        else index = 5; // 0% (완전 방전)
+
+        // 인덱스가 배열 범위를 넘지 않게 안전장치
+        index = Mathf.Clamp(index, 0, batterySprites.Length - 1);
+
+        // 이미지 교체!
+        batteryUI.sprite = batterySprites[index];
     }
 
     public void ToggleFlashlight()
@@ -96,11 +124,16 @@ public class FlashLight : MonoBehaviour
         if (volumetricBeam != null) volumetricBeam.SetActive(isFlashLightOn);
     }
 
-    // [핵심] 배터리 아이템 먹었을 때 호출할 함수
+    // 아이템 먹었을 때 호출할 함수
     public void RestoreBattery()
     {
         currentBattery = maxBattery;
-        // 충전되면 자동으로 켜지게 할지, 아니면 그냥 충전만 할지 선택 (여기선 충전만)
-        if (audioSource != null && clickSound != null) audioSource.PlayOneShot(clickSound); // 충전 소리 재생 (선택)
+
+        // 소리 재생
+        if (audioSource != null && clickSound != null)
+            audioSource.PlayOneShot(clickSound);
+
+        // 배터리 찼으니까 즉시 UI 업데이트
+        UpdateBatteryUI();
     }
 }
