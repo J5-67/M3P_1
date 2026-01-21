@@ -365,9 +365,21 @@ public class Player : MonoBehaviour
                 if (hit.collider.CompareTag("Key"))
                 {
                     keyCount++;
+
+                    GhostEnemy[] enemies = FindObjectsByType<GhostEnemy>(FindObjectsSortMode.None);
+
+                    foreach (GhostEnemy ghost in enemies)
+                    {
+                        ghost.IncreaseSpeed(1.0f); // 속도 1 증가
+                    }
+
                     Destroy(hit.collider.gameObject);
-                    // 텍스트 바로 꺼주기 (센스!)
-                    if (interactionText != null) interactionText.gameObject.SetActive(false);
+
+                    if (interactionText != null)
+                    {
+                        interactionText.text = $"열쇠 획득! ({keyCount}/3)\n적이 빨라집니다...";
+                        interactionText.gameObject.SetActive(true);
+                    }
                 }
                 else if (hit.collider.CompareTag("Battery"))
                 {
