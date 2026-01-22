@@ -86,4 +86,18 @@ public class GhostEnemy : MonoBehaviour
         moveSpeed += amount;
         Debug.Log($"유령이 화났다! 현재 속도: {moveSpeed}");
     }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            Player p = other.GetComponent<Player>();
+            if (p != null)
+            {
+                p.TakeDamage(20f);
+
+                Respawn();
+            }
+        }
+    }
 }

@@ -180,4 +180,32 @@ public class FlashLight : MonoBehaviour
         }
     }
 
+    private void OnDrawGizmosSelected()
+    {
+        // 1. 색상 설정 (반투명한 노란색)
+        Gizmos.color = new Color(1f, 0.92f, 0.016f, 0.3f);
+
+        // 2. 현재 위치와 방향 저장
+        Vector3 pos = transform.position;
+        Vector3 forward = transform.forward;
+
+        // 3. 거리(Range)를 보여주는 선 그리기
+        Gizmos.DrawRay(pos, forward * lightRange);
+
+        // 4. 부채꼴(Angle)의 양 끝 경계선 그리기
+        // 정면에서 왼쪽/오른쪽으로 lightAngle만큼 회전한 방향 계산
+        Quaternion leftRayRotation = Quaternion.AngleAxis(-lightAngle, transform.up);
+        Quaternion rightRayRotation = Quaternion.AngleAxis(lightAngle, transform.up);
+
+        Vector3 leftRayDirection = leftRayRotation * forward;
+        Vector3 rightRayDirection = rightRayRotation * forward;
+
+        Gizmos.DrawRay(pos, leftRayDirection * lightRange);
+        Gizmos.DrawRay(pos, rightRayDirection * lightRange);
+
+        // 5. 원형 범위(OverlapSphere) 표시 (더 연한 색으로)
+        Gizmos.color = new Color(1f, 1f, 1f, 0.1f);
+        Gizmos.DrawWireSphere(pos, lightRange);
+    }
+
 }

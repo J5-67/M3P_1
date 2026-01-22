@@ -74,6 +74,13 @@ public class Player : MonoBehaviour
     [SerializeField] private LayerMask interactionLayer; // 아이템 레이어만 체크 (최적화)
     [SerializeField] private TMP_Text interactionText; // 화면 중앙 안내 텍스트 (예: "E 열쇠 획득")
 
+    [Header("--- Health Settings ---")]
+    public float maxHealth = 100f;
+    public float currentHealth;
+    public Image damageOverlay; // 맞으면 빨갛게 번쩍일 이미지
+    public AudioClip damageSound; // 맞을 때 "윽!" 소리
+    public float flashSpeed = 2f; // 화면 빨개진 거 사라지는 속도
+
     [Header("--- Inventory ---")]
     public int keyCount = 0;
 
@@ -106,11 +113,19 @@ public class Player : MonoBehaviour
         playerCamera = Camera.main;
         if (playerCamera == null) playerCamera = GetComponentInChildren<Camera>();
 
+        if (damageOverlay != null)
+        {
+            Color c = damageOverlay.color;
+            c.a = 0f;
+            damageOverlay.color = c;
+        }
+
         flashLight = GetComponentInChildren<FlashLight>();
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
+        currentHealth = maxHealth;
         currentStamina = maxStamina;
         staminaSlider.value = maxStamina;
     }
@@ -131,6 +146,7 @@ public class Player : MonoBehaviour
         HandleRotation();
         HandleHeadBob();
         HandleLanding();
+        HandleDamageOverlay();
     }
 
     private void HandleInteractionUI()
@@ -334,6 +350,54 @@ public class Player : MonoBehaviour
         int index = Random.Range(0, clips.Count);
         footstepSource.pitch = Random.Range(0.9f, 1.1f);
         footstepSource.PlayOneShot(clips[index], volume);
+    }
+
+    public void TakeDamage(float amount)
+    {
+        currentHealth -= amount;
+
+        // 1. 소리 재생
+        if (footstepSource != null && damageSound != null)
+        {
+            footstepSource.PlayOneShot(damageSound, 1.0f);
+        }
+
+        // 2. 화면 빨갛게 만들기 (알파값 0.8로 확 올림)
+        if (damageOverlay != null)
+        {
+            Color c = damageOverlay.color;
+            c.a = 0.1f;
+            damageOverlay.color = c;
+        }
+
+        // 3. 게임 오버 체크
+        if (currentHealth <= 0)
+        {
+            Die();
+        }
+    }
+
+    void HandleDamageOverlay()
+    {
+        if (damageOverlay != null)
+        {
+            // 색깔을 서서히 투명하게(Alpha -> 0) 만듦
+            if (damageOverlay.color.a > 0)
+            {
+                Color c = damageOverlay.color;
+                c.a = Mathf.Lerp(c.a, 0f, flashSpeed * Time.deltaTime);
+                damageOverlay.color = c;
+            }
+        }
+    }
+
+    void Die()
+    {
+        Debug.Log("으악! 사망했습니다.");
+        // 나중엔 여기에 'Game Over' 화면 띄우는 로직 넣으면 돼!
+        // 일단은 움직임 멈추기
+        walkSpeed = 0f;
+        sprintSpeed = 0f;
     }
 
     private void OnMove(InputValue value) { moveInput = value.Get<Vector2>(); }
